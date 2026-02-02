@@ -2,40 +2,116 @@ package view;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 
 public class Ventana extends JFrame {
 
-    private PanelMap panelMapa; 
+    private PanelMap panelMap;
 
     public Ventana() {
-        setTitle("Visualizador BFS y DFS");
+        setTitle("Visualizador de Grafos - BFS / DFS");
         setSize(1000, 700);
+        setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        panelMapa = new PanelMap();
-        add(panelMapa, BorderLayout.CENTER);
-        crearPanelControl();
+        panelMap = new PanelMap();
+        add(panelMap, BorderLayout.CENTER);
+
+        crearMenu();
     }
-    private void crearPanelControl() {
-    JPanel panelSur = new JPanel(new GridLayout(1, 5, 10, 0));
 
-    JButton btnAgregarNodo = new JButton("Añadir nodo");
-    JButton btnBFS = new JButton("Ejecutar BFS");
-    JButton btnDFS = new JButton("Ejecutar DFS");
-    JButton btnLimpiar = new JButton("Limpiar");
-    JButton btnComparar = new JButton("Comparar");
+    private void crearMenu() {
 
-    btnAgregarNodo.addActionListener(e -> {
-        panelMapa.activarModoAgregarNodo();
-    });
+        JMenuBar menuBar = new JMenuBar();
 
-    panelSur.add(btnAgregarNodo);
-    panelSur.add(btnBFS);
-    panelSur.add(btnDFS);
-    panelSur.add(btnLimpiar);
-    panelSur.add(btnComparar);
+        JMenu menuArchivo = new JMenu("Archivo");
 
-    add(panelSur, BorderLayout.SOUTH);
-}
+        JMenuItem itemCargar = new JMenuItem("Cargar grafo");
+        JMenuItem itemGuardar = new JMenuItem("Guardar grafo");
+        JMenuItem itemSalir = new JMenuItem("Salir");
+
+        itemCargar.addActionListener(e -> panelMap.cargarGrafo());
+        itemGuardar.addActionListener(e -> panelMap.guardarGrafo());
+        itemSalir.addActionListener(e -> System.exit(0));
+
+        menuArchivo.add(itemCargar);
+        menuArchivo.add(itemGuardar);
+        menuArchivo.addSeparator();
+        menuArchivo.add(itemSalir);
+
+        menuBar.add(menuArchivo);
+
+        JMenu menuNodo = new JMenu("Nodo");
+
+        JMenuItem itemAgregar = new JMenuItem("Agregar");
+        JMenuItem itemQuitar = new JMenuItem("Quitar");
+        JMenuItem itemLimpiar = new JMenuItem("Limpiar");
+        JMenuItem itemConectar = new JMenuItem("Conectar");
+
+        itemConectar.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_U, InputEvent.CTRL_DOWN_MASK));
+        itemConectar.addActionListener(e
+                -> panelMap.setModo(ModoInteraccion.UNIR_NODOS));
+
+        menuNodo.add(itemConectar);
+
+        itemAgregar.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.CTRL_DOWN_MASK));
+        itemAgregar.addActionListener(e
+                -> panelMap.setModo(ModoInteraccion.AGREGAR_NODO));
+
+        itemQuitar.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK));
+        itemQuitar.addActionListener(e
+                -> panelMap.setModo(ModoInteraccion.QUITAR_NODO));
+        itemLimpiar.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, InputEvent.CTRL_DOWN_MASK));
+        itemLimpiar.addActionListener(e
+                -> panelMap.limpiarNodos());
+
+        menuNodo.add(itemAgregar);
+        menuNodo.add(itemQuitar);
+        menuNodo.addSeparator();
+        menuNodo.add(itemLimpiar);
+
+        JMenu menuAlgoritmos = new JMenu("Algoritmos");
+        JMenuItem itemBFS = new JMenuItem("BFS");
+        JMenuItem itemDFS = new JMenuItem("DFS");
+
+        menuAlgoritmos.add(itemBFS);
+
+        menuAlgoritmos.add(itemDFS);
+
+        itemBFS.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.CTRL_DOWN_MASK));
+        itemBFS.addActionListener(e -> {
+            System.out.println("Click en BFS");
+            panelMap.ejecutarBFS();
+        });
+
+        itemDFS.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, InputEvent.CTRL_DOWN_MASK));
+        itemDFS.addActionListener(e -> panelMap.ejecutarDFS());
+
+        JMenu menuSeleccion = new JMenu("Selección");
+
+        JMenuItem itemInicio = new JMenuItem("Elegir Inicio");
+        JMenuItem itemFin = new JMenuItem("Elegir Fin");
+        JMenuItem itemComparar = new JMenuItem("Comparar");
+
+        itemInicio.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_I, InputEvent.CTRL_DOWN_MASK));
+        itemInicio.addActionListener(e
+                -> panelMap.setModo(ModoInteraccion.SELECCIONAR_INICIO));
+
+        itemFin.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK));
+        itemFin.addActionListener(e
+                -> panelMap.setModo(ModoInteraccion.SELECCIONAR_FIN));
+
+        menuSeleccion.add(itemInicio);
+        menuSeleccion.add(itemFin);
+        menuSeleccion.addSeparator();
+        menuSeleccion.add(itemComparar);
+
+        menuBar.add(menuNodo);
+        menuBar.add(menuAlgoritmos);
+        menuBar.add(menuSeleccion);
+
+        setJMenuBar(menuBar);
+    }
 }
