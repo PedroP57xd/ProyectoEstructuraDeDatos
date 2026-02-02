@@ -42,7 +42,7 @@ public class PanelMap extends JPanel {
         });
     }
 
-    // ================= MODOS =================
+    // Modos
     public void setModo(ModoInteraccion nuevoModo) {
         this.modo = nuevoModo;
 
@@ -53,7 +53,7 @@ public class PanelMap extends JPanel {
         }
     }
 
-    // ================= CLICK =================
+    // click
     private void manejarClick(int x, int y) {
 
         switch (modo) {
@@ -87,7 +87,7 @@ public class PanelMap extends JPanel {
         }
     }
 
-    // ================= SELECCIÓN =================
+    // Seleccion
     private void seleccionarInicio(int x, int y) {
         Nodo n = obtenerNodoCercano(x, y);
         if (n != null) {
@@ -110,7 +110,7 @@ public class PanelMap extends JPanel {
         }
     }
 
-    // ================= UTILIDADES =================
+    // utilidades
     private Nodo obtenerNodoCercano(int x, int y) {
         for (Nodo n : nodos) {
             if (n.getPosicion().distance(x, y) <= 12) {
@@ -126,12 +126,10 @@ public class PanelMap extends JPanel {
             return;
         }
 
-        // 1️⃣ Eliminar el nodo de las listas de vecinos
         for (Nodo otro : nodos) {
             otro.getVecinos().remove(n);
         }
 
-        // 2️⃣ Limpiar referencias especiales
         if (n == nodoInicio) {
             nodoInicio = null;
         }
@@ -139,7 +137,6 @@ public class PanelMap extends JPanel {
             nodoFin = null;
         }
 
-        // 3️⃣ Eliminar el nodo del grafo
         nodos.remove(n);
     }
 
@@ -150,17 +147,17 @@ public class PanelMap extends JPanel {
         repaint();
     }
 
-    // ================= DIBUJO =================
+    // Graficos
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
         Graphics2D g2 = (Graphics2D) g;
 
-        // ===== FONDO =====
+        // Fondo Imagen
         g.drawImage(mapa, 0, 0, getWidth(), getHeight(), this);
 
-        // ===== ARISTAS (UNIONES NORMALES) =====
+        // Conexiones
         g2.setStroke(new BasicStroke(4f));
         g2.setColor(Color.GRAY);
 
@@ -172,7 +169,7 @@ public class PanelMap extends JPanel {
             }
         }
 
-        // ===== RUTA RESULTANTE (BFS / DFS) =====
+        // ruta 
         g2.setStroke(new BasicStroke(6f)); // más gruesa
         g2.setColor(colorRuta);
 
@@ -182,7 +179,7 @@ public class PanelMap extends JPanel {
             g2.drawLine(p1.x, p1.y, p2.x, p2.y);
         }
 
-        // ===== NODOS =====
+        // nodox
         for (Nodo n : nodos) {
             Point p = n.getPosicion();
 
@@ -243,64 +240,82 @@ public class PanelMap extends JPanel {
         pintarRuta(ruta, Color.ORANGE);
     }
 
-    public void cargarGrafo() {
-        JFileChooser chooser = new JFileChooser();
+public void cargarGrafo() {
+    JFileChooser chooser = new JFileChooser();
 
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-
-        File archivo = chooser.getSelectedFile();
-
-        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
-
-            nodos.clear();
-            rutaActual.clear();
-            nodoInicio = null;
-            nodoFin = null;
-
-            List<String> lineas = br.lines().toList();
-            List<Nodo> tempNodos = new ArrayList<>();
-            int i=0;
-            int id = 0;
-
-            while (!lineas.get(i).equals("# ARISTAS")) {
-                if (!lineas.get(i).startsWith("#")) {
-                    String[] p = lineas.get(i).split(",");
-
-                    tempNodos.add(new Nodo(
-                            id,
-                            Integer.parseInt(p[0]),
-                            Integer.parseInt(p[1])
-                    ));
-                    id++;
-                }
-                i++;
-            }
-
-            nodos.addAll(tempNodos);
-
-            i++; // saltar "# ARISTAS"
-            while (!lineas.get(i).equals("# INICIO_FIN")) {
-                String[] e = lineas.get(i).split("-");
-                int a = Integer.parseInt(e[0]);
-                int b = Integer.parseInt(e[1]);
-
-                nodos.get(a).getVecinos().add(nodos.get(b));
-                nodos.get(b).getVecinos().add(nodos.get(a));
-                i++;
-            }
-
-            i++;
-            String[] sf = lineas.get(i).split(",");
-            nodoInicio = nodos.get(Integer.parseInt(sf[0]));
-            nodoFin = nodos.get(Integer.parseInt(sf[1]));
-
-            repaint();
-
-        } catch (Exception ex) {
-        }
+    if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+        return;
     }
+
+    File archivo = chooser.getSelectedFile();
+
+    try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
+
+        nodos.clear();
+        rutaActual.clear();
+        nodoInicio = null;
+        nodoFin = null;
+
+        List<String> lineas = br.lines().toList();
+
+        int i = 0;
+        int id = 0;
+
+        // ===== LEER NODOS =====
+        while (i < lineas.size() && !lineas.get(i).trim().equals("# ARISTAS")) {
+            String linea = lineas.get(i).trim();
+
+            if (!linea.isEmpty() && !linea.startsWith("#")) {
+                String[] p = linea.split(",");
+
+                nodos.add(new Nodo(
+                        id++,
+                        Integer.parseInt(p[0].trim()),
+                        Integer.parseInt(p[1].trim())
+                ));
+            }
+            i++;
+        }
+
+        i++; // saltar # ARISTAS
+
+        // ===== LEER ARISTAS =====
+        while (i < lineas.size() && !lineas.get(i).trim().equals("# INICIO_FIN")) {
+            String linea = lineas.get(i).trim();
+
+            if (!linea.isEmpty()) {
+                String[] e = linea.split("-");
+                int a = Integer.parseInt(e[0].trim());
+                int b = Integer.parseInt(e[1].trim());
+
+                nodos.get(a).agregarVecino(nodos.get(b));
+                nodos.get(b).agregarVecino(nodos.get(a));
+            }
+            i++;
+        }
+
+        i++; // saltar # INICIO_FIN
+
+        // ===== LEER INICIO Y FIN =====
+        if (i < lineas.size()) {
+            String[] sf = lineas.get(i).trim().split(",");
+
+            nodoInicio = nodos.get(Integer.parseInt(sf[0].trim()));
+            nodoFin = nodos.get(Integer.parseInt(sf[1].trim()));
+
+            nodoInicio.setTipo(Nodo.Tipo.INICIO);
+            nodoFin.setTipo(Nodo.Tipo.FIN);
+        }
+
+        repaint();
+
+        System.out.println("Grafo cargado correctamente. Nodos: " + nodos.size());
+
+    } catch (Exception ex) {
+        ex.printStackTrace();
+    }
+}
+    
 
     public void guardarGrafo() {
         JFileChooser chooser = new JFileChooser();

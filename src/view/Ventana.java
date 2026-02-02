@@ -14,6 +14,8 @@ public class Ventana extends JFrame {
         setSize(1000, 700);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
+        setUndecorated(true);
         setLayout(new BorderLayout());
 
         panelMap = new PanelMap();
@@ -24,7 +26,7 @@ public class Ventana extends JFrame {
 
     private void crearMenu() {
 
-        JMenuBar menuBar = new JMenuBar();
+        JMenuBar menuBar = new   JMenuBar();
 
         JMenu menuArchivo = new JMenu("Archivo");
 
@@ -32,8 +34,13 @@ public class Ventana extends JFrame {
         JMenuItem itemGuardar = new JMenuItem("Guardar grafo");
         JMenuItem itemSalir = new JMenuItem("Salir");
 
+        itemCargar.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK));
         itemCargar.addActionListener(e -> panelMap.cargarGrafo());
+
+        itemGuardar.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_DOWN_MASK));
         itemGuardar.addActionListener(e -> panelMap.guardarGrafo());
+
+        itemSalir.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
         itemSalir.addActionListener(e -> System.exit(0));
 
         menuArchivo.add(itemCargar);
