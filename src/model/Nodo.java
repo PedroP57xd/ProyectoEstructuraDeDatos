@@ -44,5 +44,15 @@ public class Nodo {
 
     public void setTipo(Tipo tipo) {
         this.tipo = tipo;
+         
+        
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 }

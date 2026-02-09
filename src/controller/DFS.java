@@ -7,46 +7,51 @@ public class DFS {
 
     public static List<Nodo> ejecutar(Nodo inicio, Nodo fin) {
 
-        Stack<Nodo> pila = new Stack<>();
-        Map<Nodo, Nodo> predecesor = new HashMap<>();
         Set<Nodo> visitados = new HashSet<>();
+        List<Nodo> ruta = new ArrayList<>();
 
-        pila.push(inicio);
-        visitados.add(inicio);
-        predecesor.put(inicio, null);
+        boolean encontrado = dfsRecursivo(
+                inicio,
+                fin,
+                visitados,
+                ruta
+        );
 
-        while (!pila.isEmpty()) {
-            Nodo actual = pila.pop();
-
-            if (actual == fin) {
-                return reconstruirRuta(predecesor, fin);
-            }
-
-            for (Nodo vecino : actual.getVecinos()) {
-                if (!visitados.contains(vecino)) {
-                    visitados.add(vecino);
-                    predecesor.put(vecino, actual);
-                    pila.push(vecino);
-                }
-            }
+        if (encontrado) {
+            return ruta;
         }
 
         return new ArrayList<>();
     }
 
-    private static List<Nodo> reconstruirRuta(
-            Map<Nodo, Nodo> predecesor,
-            Nodo fin) {
+    private static boolean dfsRecursivo(
+            Nodo actual,
+            Nodo fin,
+            Set<Nodo> visitados,
+            List<Nodo> ruta) {
 
-        List<Nodo> ruta = new ArrayList<>();
-        Nodo actual = fin;
+        visitados.add(actual);
+        ruta.add(actual);
 
-        while (actual != null) {
-            ruta.add(actual);
-            actual = predecesor.get(actual);
+        // Llegamos al final
+        if (actual == fin) {
+            return true;
         }
 
-        Collections.reverse(ruta);
-        return ruta;
+        // Explorar vecinos
+        for (Nodo vecino : actual.getVecinos()) {
+
+            if (!visitados.contains(vecino)) {
+
+                if (dfsRecursivo(vecino, fin, visitados, ruta)) {
+                    return true;
+                }
+            }
+        }
+
+        // Backtracking (retroceder)
+        ruta.remove(ruta.size() - 1);
+
+        return false;
     }
 }

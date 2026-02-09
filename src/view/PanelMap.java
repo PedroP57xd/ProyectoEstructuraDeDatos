@@ -1,5 +1,6 @@
 package view;
 
+import controller.BFS;
 import model.Nodo;
 
 import javax.swing.*;
@@ -8,18 +9,24 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
-import controller.BFS;
+import controller.BFSPaths;
 import controller.DFS;
+import controller.DFSPaths;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.PrintWriter;
+import model.ResultadosBusqueda;
 
 public class PanelMap extends JPanel {
 
+    private int indiceRuta = 0;
+    private Timer animador;
+    private static final int RADIO_NODO = 8;
     private Image mapa;
     private List<Nodo> nodos;
     private List<Nodo> rutaActual = new ArrayList<>();
+    private List<List<Nodo>> rutas = new ArrayList<>();
     private Color colorRuta = Color.BLUE;
 
     private ModoInteraccion modo = ModoInteraccion.NINGUNO;
@@ -32,8 +39,9 @@ public class PanelMap extends JPanel {
 
     public PanelMap() {
         nodos = new ArrayList<>();
-        mapa = new ImageIcon("Assets/Fondo Mapa.png").getImage();
-
+        mapa = new ImageIcon(
+                getClass().getResource("/resources/Fondo Mapa.png")
+        ).getImage();
         addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -44,11 +52,19 @@ public class PanelMap extends JPanel {
 
     // Modos
     public void setModo(ModoInteraccion nuevoModo) {
+        detenerAnimacion();
+
         this.modo = nuevoModo;
 
+        nodoSeleccionadoParaUnion = null; // reset
+
         if (modo == ModoInteraccion.AGREGAR_NODO) {
-            setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+
+            setCursor(Cursor.getPredefinedCursor(
+                    Cursor.CROSSHAIR_CURSOR));
+
         } else {
+
             setCursor(Cursor.getDefaultCursor());
         }
     }
@@ -77,8 +93,12 @@ public class PanelMap extends JPanel {
                 seleccionarFin(x, y);
                 repaint();
                 break;
-            case UNIR_NODOS:
-                unirNodos(x, y);
+            case UNIR_UNI:
+                unirUnidireccional(x, y);
+                repaint();
+                break;
+            case UNIR_BI:
+                unirBidireccional(x, y);
                 repaint();
                 break;
 
@@ -141,9 +161,17 @@ public class PanelMap extends JPanel {
     }
 
     public void limpiarNodos() {
+
+        detenerAnimacion(); // ⬅️
+
         nodos.clear();
+        rutas.clear();
+
         nodoInicio = null;
         nodoFin = null;
+
+        rutaActual.clear();
+
         repaint();
     }
 
@@ -157,15 +185,46 @@ public class PanelMap extends JPanel {
         // Fondo Imagen
         g.drawImage(mapa, 0, 0, getWidth(), getHeight(), this);
 
-        // Conexiones
+        // ===== ARISTAS =====
         g2.setStroke(new BasicStroke(4f));
-        g2.setColor(Color.GRAY);
 
         for (Nodo n : nodos) {
+
             Point p1 = n.getPosicion();
-            for (Nodo vecino : n.getVecinos()) {
-                Point p2 = vecino.getPosicion();
-                g2.drawLine(p1.x, p1.y, p2.x, p2.y);
+
+            for (Nodo v : n.getVecinos()) {
+
+                Point p2 = v.getPosicion();
+
+                boolean esBi
+                        = v.getVecinos().contains(n);
+
+                // Ajustar punto final
+                Point fin = ajustarAlBorde(p1, p2);
+
+                if (esBi) {
+
+                    g2.setColor(Color.DARK_GRAY);
+
+                    g2.drawLine(
+                            p1.x, p1.y,
+                            fin.x, fin.y
+                    );
+
+                } else {
+
+                    g2.setColor(Color.LIGHT_GRAY);
+
+                    g2.drawLine(
+                            p1.x, p1.y,
+                            fin.x, fin.y
+                    );
+
+                    dibujarFlecha(g2,
+                            p1.x, p1.y,
+                            fin.x, fin.y
+                    );
+                }
             }
         }
 
@@ -220,102 +279,138 @@ public class PanelMap extends JPanel {
     }
 
     public void ejecutarBFS() {
-        System.out.println("BFS presionado");
+        detenerAnimacion();
 
         if (nodoInicio == null || nodoFin == null) {
-            System.out.println("Inicio o fin NO definidos");
             return;
         }
 
-        List<Nodo> ruta = BFS.ejecutar(nodoInicio, nodoFin);
-        pintarRuta(ruta, Color.BLUE);
+        rutas = BFSPaths.buscar(nodoInicio, nodoFin);
+
+        animarRutas();
     }
 
     public void ejecutarDFS() {
+        detenerAnimacion();
+
         if (nodoInicio == null || nodoFin == null) {
             return;
         }
 
-        List<Nodo> ruta = DFS.ejecutar(nodoInicio, nodoFin);
-        pintarRuta(ruta, Color.ORANGE);
+        rutas = DFSPaths.buscar(nodoInicio, nodoFin);
+
+        animarRutas();
     }
 
-public void cargarGrafo() {
-    JFileChooser chooser = new JFileChooser();
+    public void cargarGrafo() {
 
-    if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-        return;
-    }
+        JFileChooser chooser = new JFileChooser();
 
-    File archivo = chooser.getSelectedFile();
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
 
-    try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
+        File archivo = chooser.getSelectedFile();
 
-        nodos.clear();
-        rutaActual.clear();
-        nodoInicio = null;
-        nodoFin = null;
+        try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
 
-        List<String> lineas = br.lines().toList();
+            nodos.clear();
+            rutaActual.clear();
+            nodoInicio = null;
+            nodoFin = null;
 
-        int i = 0;
-        int id = 0;
+            List<String> lineas = br.lines()
+                    .map(String::trim) // quitar espacios
+                    .filter(l -> !l.isEmpty()) // quitar vacías
+                    .toList();
 
-        // ===== LEER NODOS =====
-        while (i < lineas.size() && !lineas.get(i).trim().equals("# ARISTAS")) {
-            String linea = lineas.get(i).trim();
+            int i = 0;
 
-            if (!linea.isEmpty() && !linea.startsWith("#")) {
-                String[] p = linea.split(",");
-
-                nodos.add(new Nodo(
-                        id++,
-                        Integer.parseInt(p[0].trim()),
-                        Integer.parseInt(p[1].trim())
-                ));
+            // ================= NODOS =================
+            if (!lineas.get(i).equals("# NODOS")) {
+                throw new RuntimeException("Archivo sin # NODOS");
             }
+
             i++;
-        }
 
-        i++; // saltar # ARISTAS
+            while (!lineas.get(i).equals("# ARISTAS")) {
 
-        // ===== LEER ARISTAS =====
-        while (i < lineas.size() && !lineas.get(i).trim().equals("# INICIO_FIN")) {
-            String linea = lineas.get(i).trim();
+                String[] p = lineas.get(i).split(",");
 
-            if (!linea.isEmpty()) {
-                String[] e = linea.split("-");
-                int a = Integer.parseInt(e[0].trim());
-                int b = Integer.parseInt(e[1].trim());
+                int x = Integer.parseInt(p[0]);
+                int y = Integer.parseInt(p[1]);
 
-                nodos.get(a).agregarVecino(nodos.get(b));
-                nodos.get(b).agregarVecino(nodos.get(a));
+                nodos.add(new Nodo(contadorId++, x, y));
+
+                i++;
             }
-            i++;
+
+            i++; // saltar # ARISTAS
+
+            // ================= ARISTAS =================
+            while (!lineas.get(i).equals("# INICIO_FIN")) {
+
+                String linea = lineas.get(i);
+
+                boolean bidireccional = linea.contains("<->");
+                boolean unidireccional = linea.contains(">");
+
+                String[] p;
+
+                if (bidireccional) {
+                    p = linea.split("<->");
+                } else {
+                    p = linea.split(">");
+                }
+
+                int a = Integer.parseInt(p[0]);
+                int b = Integer.parseInt(p[1]);
+
+                if (a < nodos.size() && b < nodos.size()) {
+
+                    Nodo na = nodos.get(a);
+                    Nodo nb = nodos.get(b);
+
+                    na.agregarVecino(nb);
+
+                    if (bidireccional) {
+                        nb.agregarVecino(na);
+                    }
+                }
+
+                i++;
+            }
+
+            i++; // saltar # INICIO_FIN
+
+            // ================= INICIO / FIN =================
+            String[] sf = lineas.get(i).split(",");
+
+            int ini = Integer.parseInt(sf[0]);
+            int fin = Integer.parseInt(sf[1]);
+
+            if (ini >= 0 && fin >= 0
+                    && ini < nodos.size()
+                    && fin < nodos.size()) {
+
+                nodoInicio = nodos.get(ini);
+                nodoFin = nodos.get(fin);
+
+                nodoInicio.setTipo(Nodo.Tipo.INICIO);
+                nodoFin.setTipo(Nodo.Tipo.FIN);
+            }
+
+            repaint();
+            revalidate();
+
+            System.out.println("Grafo cargado correctamente. Nodos: " + nodos.size());
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this,
+                    "Error al cargar archivo:\n" + ex.getMessage());
         }
-
-        i++; // saltar # INICIO_FIN
-
-        // ===== LEER INICIO Y FIN =====
-        if (i < lineas.size()) {
-            String[] sf = lineas.get(i).trim().split(",");
-
-            nodoInicio = nodos.get(Integer.parseInt(sf[0].trim()));
-            nodoFin = nodos.get(Integer.parseInt(sf[1].trim()));
-
-            nodoInicio.setTipo(Nodo.Tipo.INICIO);
-            nodoFin.setTipo(Nodo.Tipo.FIN);
-        }
-
-        repaint();
-
-        System.out.println("Grafo cargado correctamente. Nodos: " + nodos.size());
-
-    } catch (Exception ex) {
-        ex.printStackTrace();
     }
-}
-    
 
     public void guardarGrafo() {
         JFileChooser chooser = new JFileChooser();
@@ -335,23 +430,315 @@ public void cargarGrafo() {
             }
 
             pw.println("\n# ARISTAS");
+
             for (int i = 0; i < nodos.size(); i++) {
-                for (Nodo v : nodos.get(i).getVecinos()) {
-                    int j = nodos.indexOf(v);
-                    if (i < j) {
-                        pw.println(i + "-" + j);
+
+                Nodo a = nodos.get(i);
+
+                for (Nodo b : a.getVecinos()) {
+
+                    int j = nodos.indexOf(b);
+
+                    // ¿Es bidireccional?
+                    boolean esBi = b.getVecinos().contains(a);
+
+                    if (esBi) {
+
+                        // Guardar solo una vez
+                        if (i < j) {
+                            pw.println(i + "<->" + j);
+                        }
+
+                    } else {
+
+                        // Unidireccional
+                        pw.println(i + ">" + j);
                     }
                 }
             }
 
             pw.println("\n# INICIO_FIN");
-            pw.println(
-                    nodos.indexOf(nodoInicio) + ","
-                    + nodos.indexOf(nodoFin)
-            );
+            int iInicio = nodoInicio != null ? nodos.indexOf(nodoInicio) : -1;
+            int iFin = nodoFin != null ? nodos.indexOf(nodoFin) : -1;
+
+            pw.println(iInicio + "," + iFin);
 
         } catch (Exception ex) {
         }
+    }
+
+    private void unirUnidireccional(int x, int y) {
+
+        Nodo n = obtenerNodoCercano(x, y);
+        if (n == null) {
+            return;
+        }
+
+        if (nodoSeleccionadoParaUnion == null) {
+
+            // Primer click
+            nodoSeleccionadoParaUnion = n;
+
+        } else if (nodoSeleccionadoParaUnion != n) {
+
+            // Segundo click → A → B
+            nodoSeleccionadoParaUnion.agregarVecino(n);
+
+            nodoSeleccionadoParaUnion = null;
+        }
+    }
+
+    private void unirBidireccional(int x, int y) {
+
+        Nodo n = obtenerNodoCercano(x, y);
+        if (n == null) {
+            return;
+        }
+
+        if (nodoSeleccionadoParaUnion == null) {
+
+            // Primer click
+            nodoSeleccionadoParaUnion = n;
+
+        } else if (nodoSeleccionadoParaUnion != n) {
+
+            // A ↔ B
+            nodoSeleccionadoParaUnion.agregarVecino(n);
+            n.agregarVecino(nodoSeleccionadoParaUnion);
+
+            nodoSeleccionadoParaUnion = null;
+        }
+    }
+
+    private void mostrarRutas(String tipo) {
+
+        if (rutas.isEmpty()) {
+
+            JOptionPane.showMessageDialog(this,
+                    "No hay caminos con " + tipo);
+
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("Caminos ").append(tipo).append(":\n\n");
+
+        int i = 1;
+
+        for (List<Nodo> r : rutas) {
+
+            sb.append("Ruta ").append(i++).append(": ");
+
+            for (Nodo n : r) {
+
+                sb.append(n.getId()).append(" ");
+            }
+
+            sb.append("\n");
+        }
+
+        JTextArea area = new JTextArea(sb.toString());
+        area.setEditable(false);
+
+        JScrollPane scroll
+                = new JScrollPane(area);
+
+        scroll.setPreferredSize(
+                new Dimension(400, 300));
+
+        JOptionPane.showMessageDialog(this,
+                scroll,
+                "Resultados " + tipo,
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    public void buscarMejor() {
+
+        detenerAnimacion(); // ⬅️ IMPORTANTE
+
+        if (rutas.isEmpty()) {
+            return;
+        }
+
+        List<Nodo> mejor = rutas.get(0);
+
+        for (List<Nodo> r : rutas) {
+
+            if (r.size() < mejor.size()) {
+
+                mejor = r;
+            }
+        }
+
+        pintarRuta(mejor, Color.MAGENTA);
+    }
+
+    private void animarRutas() {
+
+        if (rutas.isEmpty()) {
+            return;
+        }
+
+        indiceRuta = 0;
+
+        if (animador != null && animador.isRunning()) {
+            animador.stop();
+        }
+
+        animador = new javax.swing.Timer(1200, e -> {
+
+            if (indiceRuta < rutas.size()) {
+
+                // Cambiar color según índice
+                Color c = Color.getHSBColor(
+                        (float) indiceRuta / rutas.size(),
+                        1f,
+                        1f
+                );
+
+                pintarRuta(rutas.get(indiceRuta), c);
+
+                indiceRuta++;
+
+            } else {
+
+                animador.stop();
+            }
+        });
+
+        animador.start();
+    }
+
+    private void dibujarFlecha(Graphics2D g,
+            int x1, int y1,
+            int x2, int y2) {
+
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+
+        double angulo = Math.atan2(dy, dx);
+
+        int largo = 10;
+        int ancho = 6;
+
+        int x = x2;
+        int y = y2;
+
+        int xA = (int) (x - largo * Math.cos(angulo - Math.PI / 6));
+        int yA = (int) (y - largo * Math.sin(angulo - Math.PI / 6));
+
+        int xB = (int) (x - largo * Math.cos(angulo + Math.PI / 6));
+        int yB = (int) (y - largo * Math.sin(angulo + Math.PI / 6));
+
+        Polygon flecha = new Polygon();
+
+        flecha.addPoint(x, y);
+        flecha.addPoint(xA, yA);
+        flecha.addPoint(xB, yB);
+
+        g.fillPolygon(flecha);
+    }
+
+    private Point ajustarAlBorde(Point desde, Point hasta) {
+
+        double dx = hasta.x - desde.x;
+        double dy = hasta.y - desde.y;
+
+        double dist = Math.sqrt(dx * dx + dy * dy);
+
+        double ratio = (dist - RADIO_NODO) / dist;
+
+        int x = (int) (desde.x + dx * ratio);
+        int y = (int) (desde.y + dy * ratio);
+
+        return new Point(x, y);
+    }
+
+    private void detenerAnimacion() {
+
+        if (animador != null && animador.isRunning()) {
+
+            animador.stop();
+        }
+    }
+
+    private ResultadosBusqueda medirBFS() {
+
+        long inicio = System.nanoTime();
+
+        List<Nodo> ruta = BFS.ejecutar(nodoInicio, nodoFin);
+
+        long fin = System.nanoTime();
+
+        long tiempoMs = (fin - inicio) / 1_000;
+
+        int longitud = ruta == null ? 0 : ruta.size();
+
+        return new ResultadosBusqueda("BFS", tiempoMs, longitud);
+    }
+
+    private ResultadosBusqueda medirDFS() {
+
+        long inicio = System.nanoTime();
+
+        List<Nodo> ruta = DFS.ejecutar(nodoInicio, nodoFin);
+
+        long fin = System.nanoTime();
+
+        long tiempoMs = (fin - inicio) / 1_000;
+
+        int longitud = ruta == null ? 0 : ruta.size();
+
+        return new ResultadosBusqueda("DFS", tiempoMs, longitud);
+    }
+
+    private void mostrarTabla(ResultadosBusqueda bfs,
+            ResultadosBusqueda dfs) {
+
+        String[] columnas = {
+            "Algoritmo",
+            "Tiempo (ms)",
+            "Longitud Ruta"
+        };
+
+        Object[][] datos = {
+            {
+                bfs.getAlgoritmo(),
+                bfs.getTiempo(),
+                bfs.getLongitud()
+            },
+            {
+                dfs.getAlgoritmo(),
+                dfs.getTiempo(),
+                dfs.getLongitud()
+            }
+        };
+
+        JTable tabla = new JTable(datos, columnas);
+
+        JScrollPane scroll = new JScrollPane(tabla);
+
+        JOptionPane.showMessageDialog(
+                this,
+                scroll,
+                "Comparación BFS vs DFS",
+                JOptionPane.INFORMATION_MESSAGE
+        );
+    }
+
+    public void compararAlgoritmos() {
+
+        if (nodoInicio == null || nodoFin == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Seleccione inicio y fin primero");
+            return;
+        }
+
+        ResultadosBusqueda bfs = medirBFS();
+        ResultadosBusqueda dfs = medirDFS();
+
+        mostrarTabla(bfs, dfs);
     }
 
 }
